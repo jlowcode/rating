@@ -77,7 +77,11 @@ define(['jquery'], function (jQuery) {
 			Fabrik.loader.start(ratingDiv);
 
 			var row = document.id(star).getParent('.fabrik_row');
-			var rowid = row.id.replace('list_' + this.options.listRef + '_row_', '');
+	
+			// If the element is inside a module
+			//var rowid = row.id.replace('list_' + this.options.listRef + '_row_', '');
+			var rowid = row.id.split('_')[row.id.split('_').length-1];
+
 			var data = {
 				'option'     : 'com_fabrik',
 				'format'     : 'raw',

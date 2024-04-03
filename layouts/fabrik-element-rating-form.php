@@ -3,8 +3,14 @@
 defined('JPATH_BASE') or die;
 
 $d = $displayData;
+/*
+ * There's no longer a star-empty (fa- or icon-) in joomla-fontawesome (or in fontawesome 5), so use unicode symbol
+*/
 ?>
-
+<style>.starRating.icon-star-empty::before {
+    content: "\2730";
+	font-size:1.35em;
+}</style>
 <div id="<?php echo $d->id; ?>_div" class="fabrikSubElementContainer">
 	<?php
 	$imgOpts = array('icon-class' => 'small', 'style' => $d->css, 'data-rating' => -1);
@@ -35,7 +41,7 @@ $d = $displayData;
 		echo  $d->clearImg;
 	}
 	?>
-		<span class="ratingScore badge badge-info"><?php echo $d->avg; ?></span>
+		<span class="ratingScore badge bg-info"><?php echo $d->avg; ?></span>
 		<div class="ratingMessage">
             &nbsp;
 		</div>

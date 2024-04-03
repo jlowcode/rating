@@ -11,7 +11,15 @@
 // No direct access
 defined('_JEXEC') or die('Restricted access');
 
+use Joomla\CMS\Application\ApplicationHelper;
+use Joomla\CMS\Language\Text;
+use Joomla\CMS\Component\ComponentHelper;
+use Joomla\CMS\Version;
+use Joomla\CMS\Profiler\Profiler;
+use Joomla\CMS\Uri\Uri;
+use Joomla\CMS\Factory;
 use Joomla\Utilities\ArrayHelper;
+use Joomla\CMS\HTML\HTMLHelper;
 
 jimport('joomla.application.component.model');
 
@@ -79,7 +87,7 @@ class PlgFabrik_ElementRating extends PlgFabrik_Element
 	 */
 	public function renderListData($data, stdClass &$thisRow, $opts = array())
 	{
-        $profiler = JProfiler::getInstance('Application');
+        $profiler = Profiler::getInstance('Application');
         JDEBUG ? $profiler->mark("renderListData: {$this->element->plugin}: start: {$this->element->name}") : null;
 
         $params = $this->getParams();
@@ -162,6 +170,7 @@ class PlgFabrik_ElementRating extends PlgFabrik_Element
 
 	protected function getRatingAverage($data, $listId, $formId, $rowId, $ids = array())
 	{
+		$this->createRatingTable();
 		if (empty($ids))
 		{
 			$ids[] = $rowId;
@@ -174,7 +183,7 @@ class PlgFabrik_ElementRating extends PlgFabrik_Element
 			$elementId = $this->getElement()->id;
 
 			$query = $db->getQuery(true);
-			$query->select('row_id, AVG(rating) AS r, COUNT(rating) AS total')->from(' #__{package}_ratings')
+			$query->select('row_id, AVG(rating) AS r, COUNT(rating) AS total')->from(' #__fabrik_ratings')
 				->where(array('rating <> -1', 'listid = ' . (int) $listId, 'formid = ' . (int) $formId, 'element_id = ' . (int) $elementId));
 
 			if (FArrayHelper::emptyIsh($ids))
@@ -226,7 +235,7 @@ class PlgFabrik_ElementRating extends PlgFabrik_Element
 			$db        = FabrikWorker::getDbo(true);
 			$elementId = $this->getElement()->id;
 			$query     = $db->getQuery(true);
-			$query->select('row_id, user_id')->from('#__{package}_ratings')
+			$query->select('row_id, user_id')->from('#__fabrik_ratings')
 				->where(array('rating <> -1', 'listid = ' . (int) $listId, 'formid = ' . (int) $formId, 'element_id = ' . (int) $elementId));
 
 			if (FArrayHelper::emptyIsh($ids))
@@ -247,7 +256,7 @@ class PlgFabrik_ElementRating extends PlgFabrik_Element
 
 		if (empty($this->creatorIds))
 		{
-			return JFactory::getUser()->get('id');
+			return Factory::getUser()->get('id');
 		}
 		else
 		{
@@ -308,14 +317,14 @@ class PlgFabrik_ElementRating extends PlgFabrik_Element
 
 		if ($input->get('view') == 'form' && $params->get('rating-rate-in-form', true) == 0)
 		{
-			return FText::_('PLG_ELEMENT_RATING_ONLY_ACCESSIBLE_IN_DETAILS_VIEW');
+			return Text::_('PLG_ELEMENT_RATING_ONLY_ACCESSIBLE_IN_DETAILS_VIEW');
 		}
 
 		$rowId = $this->getFormModel()->getRowId();
 
 		if ($params->get('rating-mode') == 'user-rating' && empty($rowId))
 		{
-			return FText::_('PLG_ELEMENT_RATING_NO_RATING_TILL_CREATED');
+			return Text::_('PLG_ELEMENT_RATING_NO_RATING_TILL_CREATED');
 		}
 
 		$css   = $this->canRate($rowId) ? 'cursor:pointer;' : '';
@@ -445,17 +454,7 @@ class PlgFabrik_ElementRating extends PlgFabrik_Element
 	private function getCookieName($listId, $rowId)
 	{
 		$cookieName = "rating-table_{$listId}_row_{$rowId}" . FabrikString::filteredIp();
-		jimport('joomla.utilities.utility');
-		$version = new JVersion;
-
-		if (version_compare($version->RELEASE, '3.1', '>'))
-		{
-			return JApplicationHelper::getHash($cookieName);
-		}
-		else
-		{
-			return JApplication::getHash($cookieName);
-		}
+		return ApplicationHelper::getHash($cookieName);
 	}
 
 	/**
@@ -466,22 +465,33 @@ class PlgFabrik_ElementRating extends PlgFabrik_Element
 	private function createRatingTable()
 	{
 		$db = FabrikWorker::getDbo(true);
-		$db
-			->setQuery(
-				"
+		$db->setQuery("
 			CREATE TABLE IF NOT EXISTS  `#__fabrik_ratings` (
-			`user_id` VARCHAR( 40 ) NOT NULL ,
-			`listid` INT( 6 ) NOT NULL ,
-			`formid` INT( 6 ) NOT NULL ,
-			`row_id` INT( 6 ) NOT NULL ,
-			`rating` INT( 6 ) NOT NULL,
-			`date_created` DATETIME NOT NULL,
-			`element_id` INT( 6 ) NOT NULL,
-	 		PRIMARY KEY (
-	 			`user_id` , `listid` , `formid` , `row_id`, `element_id`
-	 		)
-		);");
+				`user_id` VARCHAR( 40 ) NOT NULL DEFAULT '' ,
+				`listid` INT( 6 ) NOT NULL DEFAULT 0 ,
+				`formid` INT( 6 ) NOT NULL DEFAULT 0 ,
+				`row_id` INT( 6 ) NOT NULL DEFAULT 0 ,
+				`rating` INT( 6 ) NOT NULL DEFAULT 0,
+				`date_created` DATETIME NOT NULL,
+				`element_id` INT( 6 ) NOT NULL DEFAULT 0,
+				 PRIMARY KEY ( `user_id` , `listid` , `formid` , `row_id`, `element_id` )
+			);");
 		$db->execute();
+		/* Update existing tables */
+		$sqls = [
+			"ALTER TABLE `#__fabrik_ratings` ALTER `user_id` SET DEFAULT '';",
+			"ALTER TABLE `#__fabrik_ratings` ALTER `listid` SET DEFAULT 0;",
+			"ALTER TABLE `#__fabrik_ratings` ALTER `formid` SET DEFAULT 0;",
+			"ALTER TABLE `#__fabrik_ratings` ALTER `row_id` SET DEFAULT 0;",
+			"ALTER TABLE `#__fabrik_ratings` ALTER `rating` SET DEFAULT 0;",
+			"ALTER TABLE `#__fabrik_ratings` MODIFY `date_created` datetime NOT NULL;",
+			"ALTER TABLE `#__fabrik_ratings` ALTER `date_created` DROP DEFAULT;",
+			"ALTER TABLE `#__fabrik_ratings` ALTER `element_id` SET DEFAULT 0;",
+			"UPDATE `#__fabrik_ratings` SET `date_created` = '1980-01-01 00:00:00' WHERE `date_created` < '1000-01-01' OR `date_created` IS NULL;",
+		];
+		foreach ($sqls as $sql) {
+			$db->setQuery($sql)->execute();
+		}
 	}
 
 	/**
@@ -499,7 +509,7 @@ class PlgFabrik_ElementRating extends PlgFabrik_Element
 		$this->createRatingTable();
 		$db        = FabrikWorker::getDbo(true);
 		$tzOffset  = $this->config->get('offset');
-		$date      = JFactory::getDate('now', $tzOffset);
+		$date      = Factory::getDate('now', $tzOffset);
 		$strDate   = $db->q($date->toSql());
 		$userId    = $db->q($this->getStoreUserId($listId, $rowId));
 		$elementId = (int) $this->getElement()->id;
@@ -574,13 +584,12 @@ class PlgFabrik_ElementRating extends PlgFabrik_Element
 
 		$opts         = $this->getElementJSOptions($repeatCounter);
 
-		if (!FabrikWorker::j3())
-		{
+
 			$opts->insrc       = FabrikHelperHTML::image("star.png", 'form', @$this->tmpl, array(), true);
 			$opts->outsrc      = FabrikHelperHTML::image("star-empty.png", 'form', @$this->tmpl, array(), true);
 			$opts->clearoutsrc = $clearsrc = FabrikHelperHTML::image("remove-sign-out.png", 'form', @$this->tmpl, array(), true);
 			$opts->clearinsrc  = $clearsrc = FabrikHelperHTML::image("remove-sign.png", 'form', @$this->tmpl, array(), true);
-		}
+
 
 		$opts->row_id     = $rowId;
 		$opts->elid       = $this->getElement()->id;
@@ -605,7 +614,7 @@ class PlgFabrik_ElementRating extends PlgFabrik_Element
 		$opts->starIcon   = FabrikHelperHTML::icon("icon-star",  '', '', true);
 		$opts->starIconEmpty = FabrikHelperHTML::icon("icon-star-empty", '', '', true);
 
-		JText::script('PLG_ELEMENT_RATING_NO_RATING');
+		Text::script('PLG_ELEMENT_RATING_NO_RATING');
 
 		return array('FbRating', $id, $opts);
 	}
@@ -624,7 +633,7 @@ class PlgFabrik_ElementRating extends PlgFabrik_Element
 		$list                = $listModel->getTable();
 		$opts                = new stdClass;
 		$opts->listid        = $list->id;
-		$opts->imagepath     = JUri::root() . '/plugins/fabrik_element/rating/images/';
+		$opts->imagepath     = Uri::root() . '/plugins/fabrik_element/rating/images/';
 		$opts->elid          = $this->getElement()->id;
 		$opts->canRate       = $params->get('rating-mode') == 'creator-rating' ? true : $this->canRate();
 		$opts->doAjax        = $params->get('rating-mode') != 'creator-rating';
@@ -655,7 +664,7 @@ class PlgFabrik_ElementRating extends PlgFabrik_Element
 	 */
 	public function filterValueList($normal, $tableName = '', $label = '', $id = '', $incjoin = true)
 	{
-		$usersConfig  = JComponentHelper::getParams('com_fabrik');
+		$usersConfig  = ComponentHelper::getParams('com_fabrik');
 		$params       = $this->getParams();
 		$filter_build = $params->get('filter_build_method', 0);
 
@@ -690,7 +699,7 @@ class PlgFabrik_ElementRating extends PlgFabrik_Element
 	{
 		for ($i = 0; $i < 6; $i++)
 		{
-			$return[] = JHTML::_('select.option', $i);
+			$return[] = HTMLHelper::_('select.option', $i);
 		}
 
 		return $return;

@@ -4,7 +4,11 @@ defined('JPATH_BASE') or die;
 
 $d = $displayData;
 ?>
-<div class="fabrikRating" style="width:101px;position:relative;">
+<style>.starRating.icon-star-empty::before {
+    content: "\2730";
+	font-size:1.35em;
+}</style>
+<div class="fabrikRating" style="position:relative;">
 	<?php
 	$imgOpts = array('icon-class' => 'starRating', 'style' => $d->css);
     $roundedAvg = round($d->avg);
@@ -22,7 +26,7 @@ $d = $displayData;
 	}
 
 	?>
-    <span class="ratingScore badge badge-info"><?php echo $d->avg; ?></span>
+    <span class="ratingScore badge bg-info text-light"><?php echo $d->avg; ?></span>
     <div class="ratingMessage">
     </div>
 </div>

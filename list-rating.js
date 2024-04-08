@@ -17,6 +17,7 @@ define(['jquery'], function (jQuery) {
 		Implements: [Events, Options],
 
 		initialize: function (id, options) {
+			self = this;
 			options.element = id;
 			this.setOptions(options);
 			if (this.options.canRate === false) {
@@ -25,6 +26,17 @@ define(['jquery'], function (jQuery) {
 			if (this.options.mode === 'creator-rating') {
 				return;
 			}
+
+			// To add events when modules rendered again on submit
+			Fabrik.addEvent('fabrik.list.submit.ajax.complete', function () {
+				self.addEvents(self.options.id);
+			});
+
+			this.options.id = id;
+			this.addEvents(id);
+		},
+
+		addEvents: function (id) {
 			this.col = $$('.' + id);
 			this.origRating = {};
 			this.col.each(function (tr) {
@@ -62,7 +74,6 @@ define(['jquery'], function (jQuery) {
 				}.bind(this));
 
 			}.bind(this));
-
 		},
 
 		_getRating: function (i) {
